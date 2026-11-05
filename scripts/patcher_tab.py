@@ -548,14 +548,48 @@ class PatcherTab(tk.Frame):
         if is_init.is_file():
             try:
                 txt = is_init.read_text(encoding="utf-8")
-                txt = txt.replace('"IngeScan: Nubes de puntos…"', '"IngeScan: Point Clouds & Scans…"')
-                txt = txt.replace('tip="Abre el panel de nubes de puntos y escaneos 3D IngeScan"',
-                                  'tip="Opens the IngeScan 3D scan and point cloud panel"')
-                txt = txt.replace('"No hay ningún escaneo seleccionado para eliminar."',
-                                  '"No scan is selected to remove."')
-                txt = txt.replace('"Error al importar"', '"Import Error"')
+                is_reps = [
+                    ('"IngeScan: Nubes de puntos…"', '"IngeScan: Point Clouds & Scans…"'),
+                    ('tip="Abre el panel de nubes de puntos y escaneos 3D IngeScan"', 'tip="Opens the IngeScan 3D scan and point cloud panel"'),
+                    ('description = "Abre el panel de nubes de puntos y escaneos 3D IngeScan"', 'description = "Opens the IngeScan 3D scan and point cloud panel"'),
+                    ('"📁 Importar escaneo 3D (DAE, PLY, XYZ, LAS, E57)..."', '"📁 Import 3D Scan (DAE, PLY, XYZ, LAS, E57)..."'),
+                    ('"Escaneos activos en el modelo"', '"Active Scans in Model"'),
+                    ('["Nombre", "Puntos", "Ver", "Estado"]', '["Name", "Points", "View", "Status"]'),
+                    ('"🔒 Bloqueado como plantilla"', '"🔒 Locked as Reference Template"'),
+                    ('"Alineación y Posición rápida"', '"Quick Alignment & Positioning"'),
+                    ('"⌖ Centrar en X=0, Y=0"', '"⌖ Center at X=0, Y=0"'),
+                    ('"⤓ Apoyar suelo en Z = 0"', '"⤓ Align Base to Z = 0"'),
+                    ('"⌖ Centrar todo en (0, 0, Z=0)"', '"⌖ Center All at (0, 0, Z=0)"'),
+                    ('QPushButton("Mover")', 'QPushButton("Move")'),
+                    ('"↺ Restablecer a posición original"', '"↺ Reset to Original Position"'),
+                    ('"🔍 Enfocar en Visor"', '"🔍 Focus in Viewport"'),
+                    ('"🗑 Eliminar escaneo"', '"🗑 Delete Scan"'),
+                    ('"Visualización y Oclusión"', '"Visualization & Occlusion"'),
+                    ('"Ocultar puntos tras caras sólidas (Oclusión)"', '"Hide points behind solid faces (Occlusion)"'),
+                    ('"Tamaño de punto:"', '"Point Size:"'),
+                    ('"Modo de color:"', '"Color Mode:"'),
+                    ('"Elevación / Altura (Z)"', '"Elevation / Height (Z)"'),
+                    ('"Color original (RGB)"', '"Original Color (RGB)"'),
+                    ('"Monocromo (Blanco)"', '"Monochrome (White)"'),
+                    ('"Activar corte de planta (Sección Z)"', '"Enable Plan Cut (Z Section)"'),
+                    ('"Z Mín:"', '"Z Min:"'),
+                    ('"Z Máx:"', '"Z Max:"'),
+                    ('"🌡️ Activar Mapa de Inspección (Cercanía al modelo)"', '"🌡️ Enable Inspection Map (Model Proximity)"'),
+                    ('"Tolerancia:"', '"Tolerance:"'),
+                    ('"0 cm (En cara)  ◄── 🟢 ── 🟡 ── 🔴 ──►  Límite"', '"0 cm (On face)  ◄── 🟢 ── 🟡 ── 🔴 ──►  Limit"'),
+                    ('"Ocultar puntos fuera de la tolerancia"', '"Hide points outside tolerance"'),
+                    ('"✔ Aceptar / Cerrar ventana"', '"✔ Accept / Close Window"'),
+                    ('"🔒 Bloqueado" if cloud.locked else "🔓 Libre"', '"🔒 Locked" if cloud.locked else "🔓 Free"'),
+                    ('"🔒 Escaneo Bloqueado (Plantilla inerte)"', '"🔒 Scan Locked (Reference Template)"'),
+                    ('"🔓 Escaneo Desbloqueado (Listo para Mover/Rotar)"', '"🔓 Scan Unlocked (Ready to Move/Rotate)"'),
+                    ('"Eliminar escaneo"', '"Delete Scan"'),
+                    ('"No hay ningún escaneo seleccionado para eliminar."', '"No scan is selected to remove."'),
+                    ('"Error al importar"', '"Import Error"')
+                ]
+                for o, n in is_reps:
+                    txt = txt.replace(o, n)
                 is_init.write_text(txt, encoding="utf-8")
-                self.log("Patched IngeScan menus and dialogs to English.", "SUCCESS")
+                self.log("Patched IngeScan UI panel and dialogs to English.", "SUCCESS")
             except Exception:
                 pass
 
