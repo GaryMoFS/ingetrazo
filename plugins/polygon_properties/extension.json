@@ -1,0 +1,7 @@
+{
+  "id": "polygon_properties",
+  "name": "Polygon Properties",
+  "version": "1.0.0",
+  "author": "Rony Leonel Janampa Monago",
+  "description": "Calculates area, perimeter, centroid, and moments of inertia (Ix, Iy, Ixy, I1, I2, radii of gyration) for selected faces."
+}

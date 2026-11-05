@@ -1,0 +1,7 @@
+{
+  "id": "levels",
+  "name": "Building Levels & Elevations",
+  "version": "1.0.0",
+  "author": "José Castro Basso, Marco Sumari Tellez",
+  "description": "Building levels (Ground Floor, First Floor, Roof, etc.) with elevation guides and snapping in parallel projection views."
+}

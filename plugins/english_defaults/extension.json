@@ -1,0 +1,7 @@
+{
+  "id": "english_defaults",
+  "name": "English & International CAD Defaults",
+  "version": "1.0.0",
+  "author": "Antigravity",
+  "description": "Enforces English UI localization, sets default sheet name to 'Sheet 1', and exports DXF views to 'view.dxf' with international layer standards ('VIEW', 'VIEW-PROFILE', 'VIEW-SECTION'). Persistent across IngeTrazo updates."
+}
