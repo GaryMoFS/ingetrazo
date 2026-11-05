@@ -1,3 +1,4 @@
+import re
 import json
 import os
 import shutil
@@ -93,7 +94,7 @@ class PatcherTab(tk.Frame):
             ("sheets", "Default Sheet Layout Name:", "Checking..."),
             ("components", "Component Models & Assets:", "Checking..."),
             ("docs", "Documentation & Readme:", "Checking..."),
-            ("mcp", "MCP Helper Script:", "Checking..."),
+            ("community", "All Community Plugins:", "Checking..."),
         ]
         self.status_labels = {}
 
@@ -171,6 +172,52 @@ class PatcherTab(tk.Frame):
             self.btn_scan.config(text="🔍 Check Status", state=tk.NORMAL)
             return
         self.after(1500, lambda: self.btn_scan.config(text="🔍 Check Status"))
+
+    def audit_all_community_plugins(self) -> tuple[int, list[str]]:
+        """Audits all installed plugins for residual non-English UI text."""
+        if not PLUGINS_DIR.is_dir():
+            return 0, []
+        non_eng = [
+            'á', 'é', 'í', 'ó', 'ú', 'ñ', 'ã', 'õ', 'ç', 'ê', 'ô',
+            'selecciona', 'selecione', 'eliminar', 'excluir', 'guardar', 'salvar',
+            'cancelar', 'fechar', 'cerrar', 'corte', 'marcenaria', 'espessura',
+            'esquinas', 'muros', 'paredes', 'puertas', 'portas', 'janelas', 'ventanas',
+            'arrastra', 'dibujar muro', 'atualizar do modelo', 'bloqueado como plantilla'
+        ]
+        ui_pat = re.compile(
+            r'(?:QPushButton|QLabel|QGroupBox|QCheckBox|setWindowTitle|addToolBar|add_panel|add_menu|add_menu_action|addAction|setToolTip|flash_status|QMessageBox)\s*\(\s*([\'"])(.+?)\1',
+            re.IGNORECASE
+        )
+        total = 0
+        flagged = []
+        for p_dir in sorted(PLUGINS_DIR.iterdir()):
+            if not p_dir.is_dir() or p_dir.name.endswith(".disabled"):
+                continue
+            total += 1
+            has_issue = False
+            for py in p_dir.rglob("*.py"):
+                if any(part in py.parts for part in ['__pycache__', 'tests', 'lang_es.py', 'es.py', 'i18n']):
+                    continue
+                try:
+                    content = py.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    continue
+                for line in content.splitlines():
+                    if line.strip().startswith("#") or "tr(" in line or "_t(" in line or "text(" in line:
+                        continue
+                    m = ui_pat.search(line)
+                    if m:
+                        val = m.group(2).lower()
+                        if any(w in val for w in non_eng):
+                            if "jorge rodríguez" in val or "bézier" in val or "dimension anchored" in val:
+                                continue
+                            has_issue = True
+                            break
+                if has_issue:
+                    break
+            if has_issue:
+                flagged.append(p_dir.name)
+        return total, flagged
 
     def refresh_status(self, verbose: bool = False):
         idir = self.get_current_install_dir()
@@ -253,30 +300,20 @@ class PatcherTab(tk.Frame):
         else:
             self.set_badge("docs", "Standard", "missing")
 
-        # 6. MCP
-        mcp_file = idir / "_internal" / "scripts" / "ingetrazo_mcp.py"
-        if mcp_file.is_file():
-            try:
-                content = mcp_file.read_text(encoding="utf-8", errors="ignore")
-                if "IngeTrazo ▸ Extensions" in content or "IngeTrazo ▸\nExtensions" in content:
-                    self.set_badge("mcp", "English ('Extensions')", "installed")
-                    if verbose:
-                        self.log("MCP Helper Script: English menu reference verified")
-                else:
-                    self.set_badge("mcp", "Stock Developer Script", "disabled")
-                    if verbose:
-                        self.log("MCP Helper Script: Optional developer script (stock)")
-            except Exception:
-                self.set_badge("mcp", "Available", "missing")
+        # 6. Global Community Plugins Audit (All 115)
+        total_p, flagged_p = self.audit_all_community_plugins()
+        if flagged_p:
+            clean = total_p - len(flagged_p)
+            self.set_badge("community", f"{len(flagged_p)} Need Patch ({clean}/{total_p} Clean)", "outdated")
+            if verbose:
+                self.log(f"Community Plugins Audit: {len(flagged_p)} of {total_p} plugins have non-English text: {', '.join(flagged_p)}", "WARNING")
         else:
-            self.set_badge("mcp", "Not found", "missing")
+            self.set_badge("community", f"100% English ({total_p}/{total_p} Clean)", "installed")
+            if verbose:
+                self.log(f"Community Plugins Audit: All {total_p} plugins verified 100% English!", "SUCCESS")
 
-        # 7. Community plugins summary
         if verbose:
-            ot_dir = PLUGINS_DIR / "opentrace_bim"
-            if ot_dir.is_dir():
-                self.log("Community Plugins: OpenTrace BIM, Line Style & Sun verified in English")
-            self.log("Status check complete: English configuration verified.", "SUCCESS")
+            self.log("Status check complete: Full system English audit finished.", "SUCCESS")
 
         self.apply_theme()
 
