@@ -323,7 +323,7 @@ class PatcherTab(tk.Frame):
             lbl_val.config(text=text)
             t = self.theme_provider()
             color = t.get(status_type, t.get("fg", "#ffffff"))
-            lbl_val.config(fg=color)
+            lbl_val.config(bg=t["surface"], fg=color)
 
     def _get_registry_lang(self) -> str:
         if not winreg:
@@ -404,37 +404,42 @@ class PatcherTab(tk.Frame):
                     eng_src.rename(eng_dst)
                     self.log("Renamed figure: ingeniero.png -> engineer.png")
 
-                # Update components.json
+                # Update components.json (only if Spanish keys exist)
                 cj_path = comps_dir / "components.json"
                 if cj_path.is_file():
-                    bak = comps_dir / "components.json.bak"
-                    if not bak.is_file():
-                        shutil.copy2(cj_path, bak)
                     raw = json.loads(cj_path.read_text(encoding="utf-8"))
-                    key_map = {"sofa": "sofa", "banco": "bench", "fuente": "fountain", "arbol": "tree", "abedul": "birch", "chica": "woman", "pickup": "pickup", "suv": "suv"}
+                    key_map = {"banco": "bench", "fuente": "fountain", "arbol": "tree", "abedul": "birch", "chica": "woman"}
+                    changed = False
                     for item in raw:
                         k = item.get("key")
-                        if k in key_map:
+                        if k in key_map and key_map[k] != k:
                             item["key"] = key_map[k]
-                    cj_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
-                    self.log("Updated components.json keys to English.", "SUCCESS")
+                            changed = True
+                    if changed:
+                        bak = comps_dir / "components.json.bak"
+                        if not bak.is_file():
+                            shutil.copy2(cj_path, bak)
+                        cj_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+                        self.log("Updated components.json keys to English.", "SUCCESS")
 
-                # Update people.json
+                # Update people.json (only if Spanish keys exist)
                 pj_path = comps_dir / "people.json"
                 if pj_path.is_file():
-                    bak = comps_dir / "people.json.bak"
-                    if not bak.is_file():
-                        shutil.copy2(pj_path, bak)
                     raw = json.loads(pj_path.read_text(encoding="utf-8"))
+                    changed = False
                     for item in raw:
                         if item.get("key") == "ingeniero":
                             item["key"] = "engineer"
-                    pj_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
-                    self.log("Updated people.json keys to English.", "SUCCESS")
+                            changed = True
+                    if changed:
+                        bak = pj_path.with_suffix(".json.bak")
+                        if not bak.is_file():
+                            shutil.copy2(pj_path, bak)
+                        pj_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+                        self.log("Updated people.json keys to English.", "SUCCESS")
 
             except PermissionError:
-                self.log("Permission denied modifying Program Files. Run Manager as Administrator to patch assets.", "ERROR")
-                messagebox.showerror("Permission Denied", "Modifying components in Program Files requires Administrator privileges.\nPlease right-click and run this Manager as Administrator.")
+                self.log("Skipped Program Files assets (Administrator privileges needed only when stock Spanish assets are present).", "WARNING")
             except Exception as e:
                 self.log(f"Error patching components: {e}", "ERROR")
 
@@ -630,7 +635,109 @@ class PatcherTab(tk.Frame):
             except Exception:
                 pass
 
-        # 7. Registry plugin settings
+        # 7. Analisis de Sitio (Site Analysis)
+        as_dir = PLUGINS_DIR / "analisis_sitio"
+        if as_dir.is_dir():
+            try:
+                as_init = as_dir / "__init__.py"
+                if as_init.is_file():
+                    t_as = as_init.read_text(encoding="utf-8")
+                    for o, n in [
+                        ('"Análisis de sitio"', '"Site Analysis"'),
+                        ('"Análisis de sitio…"', '"Site Analysis…"'),
+                        ('"Editar masa en Análisis de sitio"', '"Edit mass in Site Analysis"'),
+                    ]:
+                        t_as = t_as.replace(o, n)
+                    as_init.write_text(t_as, encoding="utf-8")
+
+                as_panel = as_dir / "panel.py"
+                if as_panel.is_file():
+                    t_ap = as_panel.read_text(encoding="utf-8")
+                    as_reps = [
+                        ('"▶  Animar recorrido solar"', '"▶  Animate solar path"'),
+                        ('"Automática (por longitud)"', '"Automatic (by longitude)"'),
+                        ('"Usar la ubicación del EPW para el sitio"', '"Use EPW location for site"'),
+                        ('"<b>Periodo de análisis</b>"', '"<b>Analysis period</b>"'),
+                        ('"Ángulo (horario desde +Y)"', '"Angle (clockwise from +Y)"'),
+                        ('"Desde la arista seleccionada (apunta al norte)"', '"From selected edge (points north)"'),
+                        ('"Selecciona una línea del modelo dibujada hacia el norte "', '"Select a model line drawn toward north "'),
+                        ('"Guardar gráficos (PNG)…"', '"Save charts (PNG)…"'),
+                        ('"Guarda la rosa de los vientos y el gráfico mensual."', '"Saves the wind rose and monthly chart."'),
+                        ('"Mostrar diagrama solar"', '"Show solar diagram"'),
+                        ('"Trayectorias (día 21 de cada mes)"', '"Sun paths (21st of each month)"'),
+                        ('"<b>Rosa de los vientos</b> (periodo de la sección 1)"', '"<b>Wind rose</b> (period from section 1)"'),
+                        ('"Direcciones (de dónde viene el viento)"', '"Directions (where wind comes from)"'),
+                        ('"+ Añadir"', '"+ Add"'),
+                        ('"Aplicar vientos dominantes (EPW)"', '"Apply prevailing winds (EPW)"'),
+                        ('"Automático"', '"Automatic"'),
+                        ('"Mostrar mapa"', '"Show map"'),
+                        ('"Mostrar edificios"', '"Show buildings"'),
+                        ('"Editar edificios: clic en la vista"', '"Edit buildings: click in view"'),
+                        ('"Mostrar ocultos"', '"Show hidden"'),
+                        ('"⬛ Masa desde selección"', '"⬛ Mass from selection"'),
+                        ('"▭ Lote desde selección"', '"▭ Lot from selection"'),
+                        ('"Lote / área"', '"Lot / area"'),
+                        ('"Usar icono elegido"', '"Use chosen icon"'),
+                        ('"Eliminar"', '"Delete"'),
+                        ('"Línea guía al terreno"', '"Guide line to terrain"'),
+                        ('"Mostrar texto"', '"Show text"'),
+                        ('"Mostrar el análisis en la vista"', '"Show analysis in view"'),
+                        ('"Brújula y grados"', '"Compass and degrees"'),
+                        ('"Mostrar panel flotante de información y "', '"Show floating info panel and "'),
+                        ('"<b>Radiación solar incidente</b>"', '"<b>Incident solar radiation</b>"'),
+                        ('"☀  Calcular radiación"', '"☀  Calculate radiation"'),
+                        ('"◑  Calcular estudio de sombras"', '"◑  Calculate shadow study"'),
+                        ('"Mostrar panel flotante de la escala (radiación / sombras)"', '"Show floating scale panel (radiation / shadows)"'),
+                        ('"Escala automática (mín–máx)"', '"Automatic scale (min–max)"'),
+                        ('"Análisis de sitio"', '"Site Analysis"'),
+                    ]
+                    for o, n in as_reps:
+                        t_ap = t_ap.replace(o, n)
+                    as_panel.write_text(t_ap, encoding="utf-8")
+                self.log("Patched Análisis de sitio (Site Analysis) to English.", "SUCCESS")
+            except Exception as e:
+                self.log(f"Notice while patching analisis_sitio: {e}", "WARNING")
+
+        # 8. PisoGen ARQ
+        pg_dir = PLUGINS_DIR / "pisogen_arq" / "ingetrazo"
+        if pg_dir.is_dir():
+            try:
+                pg_panel = pg_dir / "panel.py"
+                if pg_panel.is_file():
+                    t_pp = pg_panel.read_text(encoding="utf-8")
+                    pg_reps = [
+                        ("'Preparando piso nuevo'", "'Preparing new floor'"),
+                        ("'Nuevo piso'", "'New floor'"),
+                        ("'Editar seleccionado'", "'Edit selected'"),
+                        ("'Aplicar'", "'Apply'"),
+                        ("'Eliminar'", "'Delete'"),
+                        ("'Guardar ajustes actuales'", "'Save current settings'"),
+                        ("'Guardar ajustes actuales como producto'", "'Save current settings as product'"),
+                        ("'Crear en la cara seleccionada'", "'Create on selected face'"),
+                        ("'Reconstruir este piso'", "'Rebuild this floor'"),
+                        ("'Catálogo de productos (JSON)'", "'Product catalog (JSON)'"),
+                        ("¿Eliminar «{product['nombre']}» del catálogo?", "Delete «{product['nombre']}» from catalog?"),
+                    ]
+                    for o, n in pg_reps:
+                        t_pp = t_pp.replace(o, n)
+                    pg_panel.write_text(t_pp, encoding="utf-8")
+
+                pg_plug = pg_dir / "plugin.py"
+                if pg_plug.is_file():
+                    t_pl = pg_plug.read_text(encoding="utf-8")
+                    for o, n in [
+                        ("'Panel PisoGen ARQ'", "'PisoGen ARQ Panel'"),
+                        ("'Crear piso en la cara seleccionada'", "'Create floor on selected face'"),
+                        ("'Editar piso en el panel'", "'Edit floor in panel'"),
+                        ("Se construirán {pieces} piezas. Puede tardar uno o más ", "{pieces} pieces will be built. This may take a "),
+                    ]:
+                        t_pl = t_pl.replace(o, n)
+                    pg_plug.write_text(t_pl, encoding="utf-8")
+                self.log("Patched PisoGen ARQ to English.", "SUCCESS")
+            except Exception as e:
+                self.log(f"Notice while patching pisogen_arq: {e}", "WARNING")
+
+        # 9. Registry plugin settings
         if winreg:
             try:
                 key1 = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\IngeTrazo\IngeTrazo\archxq\prefs")
@@ -737,8 +844,9 @@ class PatcherTab(tk.Frame):
         self.log_text.config(bg=t["card"], fg=t["fg"], insertbackground=t["fg"])
 
         for key in self.status_labels:
-            lbl_title, _ = self.status_labels[key]
+            lbl_title, lbl_val = self.status_labels[key]
             lbl_title.config(bg=t["surface"], fg=t["fg"])
+            lbl_val.config(bg=t["surface"])
 
         for b in (self.btn_browse, self.btn_scan, self.btn_apply, self.btn_restore, self.btn_launch):
             b.config(bg=t["btn_bg"], fg=t["btn_fg"], activebackground=t["border"], activeforeground=t["fg"])
