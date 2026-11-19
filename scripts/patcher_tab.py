@@ -737,6 +737,24 @@ class PatcherTab(tk.Frame):
             except Exception as e:
                 self.log(f"Notice while patching pisogen_arq: {e}", "WARNING")
 
+        # 8b. Rosco LT (Radial Menu)
+        rosco_dir = PLUGINS_DIR / "Rosco LT"
+        if rosco_dir.is_dir():
+            try:
+                rid = rosco_dir / "_idioma.py"
+                if rid.is_file():
+                    t_r = rid.read_text(encoding="utf-8")
+                    t_r = t_r.replace('_ajustes().value(CLAVE, "es") or "es"', '_ajustes().value(CLAVE, "en") or "en"')
+                    t_r = t_r.replace('else "es"', 'else "en"')
+                    rid.write_text(t_r, encoding="utf-8")
+                if winreg:
+                    k_rosco = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\IngeTrazo\rosco_lt\idioma")
+                    winreg.SetValueEx(k_rosco, "actual", 0, winreg.REG_SZ, "en")
+                    winreg.CloseKey(k_rosco)
+                self.log("Patched Rosco LT (Radial Menu) default language to English.", "SUCCESS")
+            except Exception as e:
+                self.log(f"Notice while patching Rosco LT: {e}", "WARNING")
+
         # 9. Registry plugin settings
         if winreg:
             try:
