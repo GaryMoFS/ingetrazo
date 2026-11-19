@@ -7,6 +7,8 @@ if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
 from patcher_tab import PatcherTab
+from profiles_tab import ProfilesTab
+import profiles_manager
 import concurrent.futures
 import ctypes
 import gzip
@@ -247,6 +249,7 @@ class PluginManagerApp:
         self.sort_state = {}
         self.tooltip = Tooltip(self.root)
         self.patcher_tab = None
+        self.profiles_tab = None
 
         self._create_widgets()
         self._apply_theme()
@@ -446,6 +449,17 @@ class PluginManagerApp:
         self.patcher_tab = PatcherTab(self.notebook, theme_provider=lambda: self.theme)
         self.notebook.add(self.patcher_tab, text="  🌐 English & Post-Update Patcher  ")
 
+        # 9. Project Profiles Tab (User & Agentic Presets)
+        self.profiles_tab = ProfilesTab(
+            self.notebook,
+            theme_provider=lambda: self.theme,
+            on_plugins_changed=self._populate_table,
+            get_tab1_checked=lambda: set(self.checked_ids),
+            set_tab1_checked=self.set_checked_ids,
+            script_path=Path(__file__).resolve(),
+        )
+        self.notebook.add(self.profiles_tab, text="  📦 Project Profiles  ")
+
     def toggle_theme(self):
         self.is_dark = not self.is_dark
         self.theme = DARK_THEME if self.is_dark else LIGHT_THEME
@@ -461,6 +475,8 @@ class PluginManagerApp:
             f.config(bg=t["bg"])
         if hasattr(self, "patcher_tab") and self.patcher_tab:
             self.patcher_tab.apply_theme()
+        if hasattr(self, "profiles_tab") and self.profiles_tab:
+            self.profiles_tab.apply_theme()
 
         self.summary_frame.config(bg=t["surface"], fg=t["fg"])
         self.title_lbl.config(bg=t["bg"], fg=t["fg"])
@@ -1011,7 +1027,20 @@ class PluginManagerApp:
         except Exception:
             pass
 
+    def set_checked_ids(self, ids: set[str]):
+        self.checked_ids = set(ids)
+        for item in self.tree.get_children():
+            vals = list(self.tree.item(item, "values"))
+            ext_id = vals[1]
+            vals[0] = "☑" if ext_id in self.checked_ids else "☐"
+            self.tree.item(item, values=vals)
+        self._update_selected_count()
+        self.notebook.select(self.tab_plugins)
+
 if __name__ == "__main__":
+    cli_exit = profiles_manager.handle_cli(sys.argv[1:])
+    if cli_exit is not None:
+        sys.exit(cli_exit)
     root = tk.Tk()
     app = PluginManagerApp(root)
     root.mainloop()
