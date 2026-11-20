@@ -42,6 +42,7 @@ enable_high_dpi_awareness()
 
 CATALOG_URL = "https://raw.githubusercontent.com/ingelibre/ingetrazo-extensions/main/catalog.json"
 PLUGINS_DIR = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "plugins"
+IGNORED_FILE = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "ignored_plugins.json"
 CACHE_FILE = PLUGINS_DIR.parent / "catalog_cache.json"
 
 # Translations for Portuguese / Spanish community plugins to English
@@ -242,6 +243,8 @@ class PluginManagerApp:
 
         self.catalog: dict[str, dict] = {}
         self.checked_ids: set[str] = set()
+        self.ignored_ids: set[str] = self._load_ignored()
+        self.show_ignored_var = tk.BooleanVar(value=False)
         self.local_meta_cache: dict[str, dict] = {}
         self.local_status_cache: dict[str, str] = {}  # ext_id -> "active" | "disabled"
         self.is_busy = False
@@ -308,6 +311,9 @@ class PluginManagerApp:
         self.lbl_missing = tk.Label(self.summary_frame, text="Missing: -", font=("Segoe UI", 9))
         self.lbl_missing.pack(side=tk.LEFT, padx=10)
 
+        self.lbl_ignored = tk.Label(self.summary_frame, text="Ignored: 0", font=("Segoe UI", 9))
+        self.lbl_ignored.pack(side=tk.LEFT, padx=10)
+
         self.lbl_selected = tk.Label(self.summary_frame, text="Selected: 0", font=("Segoe UI", 9, "bold"))
         self.lbl_selected.pack(side=tk.RIGHT, padx=10)
 
@@ -344,6 +350,24 @@ class PluginManagerApp:
             font=("Segoe UI", 9), command=self.download_all_async
         )
         self.btn_download_all.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.btn_ignore = tk.Button(
+            self.actions_frame, text="🚫 Ignore Selected", relief=tk.GROOVE, padx=8, pady=3,
+            font=("Segoe UI", 9), command=self.ignore_selected
+        )
+        self.btn_ignore.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.btn_unignore = tk.Button(
+            self.actions_frame, text="♻ Unignore", relief=tk.GROOVE, padx=8, pady=3,
+            font=("Segoe UI", 9), command=self.unignore_selected
+        )
+        self.btn_unignore.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.chk_show_ignored = tk.Checkbutton(
+            self.actions_frame, text="Show Ignored", variable=self.show_ignored_var,
+            font=("Segoe UI", 8), command=lambda: self._populate_table("Filter updated.")
+        )
+        self.chk_show_ignored.pack(side=tk.LEFT, padx=(2, 0))
 
         self.btn_refresh = tk.Button(
             self.actions_frame, text="🔄 Refresh Catalog", relief=tk.GROOVE, padx=8, pady=3,
@@ -491,15 +515,18 @@ class PluginManagerApp:
         self.lbl_disabled.config(bg=t["surface"], fg=t["disabled"])
         self.lbl_outdated.config(bg=t["surface"], fg=t["outdated"])
         self.lbl_missing.config(bg=t["surface"], fg=t["missing"])
+        self.lbl_ignored.config(bg=t["surface"], fg=t["muted"])
         self.lbl_selected.config(bg=t["surface"], fg=t["accent"])
 
         btns = (
             self.folder_btn, self.btn_theme, self.btn_download_selected, self.btn_disable, self.btn_enable,
             self.btn_update_all, self.btn_download_all, self.btn_refresh, self.btn_sel_all, self.btn_desel_all,
-            self.btn_invert, self.btn_sel_active, self.btn_sel_disabled, self.btn_sel_missing
+            self.btn_invert, self.btn_sel_active, self.btn_sel_disabled, self.btn_sel_missing,
+            self.btn_ignore, self.btn_unignore
         )
         for b in btns:
             b.config(bg=t["btn_bg"], fg=t["btn_fg"], activebackground=t["border"], activeforeground=t["fg"], bd=1)
+        self.chk_show_ignored.config(bg=t["bg"], fg=t["fg"], selectcolor=t["card"], activebackground=t["bg"], activeforeground=t["fg"])
 
         style = ttk.Style()
         style.theme_use("clam")
@@ -839,6 +866,58 @@ class PluginManagerApp:
         self._populate_table(f"Enabled {count} plugin(s). Restart IngeTrazo for changes to take effect.")
         messagebox.showinfo("Plugins Enabled", f"Successfully enabled {count} plugin(s).\n\nRestart IngeTrazo to update menus.")
 
+    def _load_ignored(self) -> set[str]:
+        try:
+            if IGNORED_FILE.is_file():
+                data = json.loads(IGNORED_FILE.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    return set(str(x) for x in data)
+        except Exception:
+            pass
+        return set()
+
+    def _save_ignored(self):
+        try:
+            IGNORED_FILE.parent.mkdir(parents=True, exist_ok=True)
+            IGNORED_FILE.write_text(json.dumps(sorted(self.ignored_ids), indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def ignore_selected(self):
+        if not self.checked_ids:
+            messagebox.showinfo("Ignore Plugins", "No plugins selected. Check the plugins you want to ignore from future searches and updates.")
+            return
+        to_ignore = set(self.checked_ids)
+        self.ignored_ids.update(to_ignore)
+        self._save_ignored()
+        disabled_count = 0
+        for ext_id in to_ignore:
+            for folder_name in (ext_id, ext_id.replace("_", "-"), ext_id.replace("-", "_")):
+                p_dir = PLUGINS_DIR / folder_name
+                init_f = p_dir / "__init__.py"
+                dis_f = p_dir / "__init__.py.disabled"
+                if init_f.is_file():
+                    try:
+                        if dis_f.is_file():
+                            dis_f.unlink()
+                        init_f.rename(dis_f)
+                        disabled_count += 1
+                        break
+                    except Exception:
+                        pass
+        self.checked_ids.difference_update(to_ignore)
+        self._populate_table(f"Ignored {len(to_ignore)} plugin(s) (disabled {disabled_count} active).")
+
+    def unignore_selected(self):
+        if not self.checked_ids:
+            messagebox.showinfo("Unignore Plugins", "Check 'Show Ignored' and select ignored plugins to restore them.")
+            return
+        restored = self.checked_ids.intersection(self.ignored_ids)
+        self.ignored_ids.difference_update(restored)
+        self._save_ignored()
+        self.checked_ids.difference_update(restored)
+        self._populate_table(f"Restored {len(restored)} plugin(s) from ignore list.")
+
     def _populate_table(self, status_msg):
         self._scan_local_plugins()
 
@@ -849,6 +928,8 @@ class PluginManagerApp:
         disabled_count = 0
         outdated_count = 0
         missing_count = 0
+        ignored_count = 0
+        show_ignored = self.show_ignored_var.get()
 
         for ext_id, entry in sorted(self.catalog.items()):
             local = self.local_meta_cache.get(ext_id)
@@ -860,7 +941,13 @@ class PluginManagerApp:
 
             chk = "☑" if ext_id in self.checked_ids else "☐"
 
-            if local is None:
+            if ext_id in self.ignored_ids:
+                ignored_count += 1
+                if not show_ignored:
+                    continue
+                status = "🚫 Ignored"
+                inst_ver = local.get("version", "-") if local else "-"
+            elif local is None:
                 status = "❌ Missing"
                 inst_ver = "-"
                 missing_count += 1
@@ -885,6 +972,7 @@ class PluginManagerApp:
         self.lbl_disabled.config(text=f"Disabled: {disabled_count}")
         self.lbl_outdated.config(text=f"Out of Date: {outdated_count}")
         self.lbl_missing.config(text=f"Missing: {missing_count}")
+        self.lbl_ignored.config(text=f"Ignored: {ignored_count}")
         self._update_selected_label()
 
         self.lbl_status.config(text=status_msg)
@@ -910,6 +998,8 @@ class PluginManagerApp:
             return
         outdated_items = []
         for ext_id, entry in self.catalog.items():
+            if ext_id in self.ignored_ids:
+                continue
             local = self.local_meta_cache.get(ext_id)
             cat_hash = entry.get("sha256", "").lower().strip()
             cat_ver = entry.get("version", "-")
@@ -926,7 +1016,7 @@ class PluginManagerApp:
     def download_all_async(self):
         if self.is_busy:
             return
-        all_items = list(self.catalog.items())
+        all_items = [(eid, ent) for eid, ent in self.catalog.items() if eid not in self.ignored_ids]
         if not all_items:
             messagebox.showwarning("Download All", "Catalog is empty. Try refreshing first.")
             return

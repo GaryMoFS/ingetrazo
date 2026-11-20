@@ -747,6 +747,11 @@ class PatcherTab(tk.Frame):
                     t_r = t_r.replace('_ajustes().value(CLAVE, "es") or "es"', '_ajustes().value(CLAVE, "en") or "en"')
                     t_r = t_r.replace('else "es"', 'else "en"')
                     rid.write_text(t_r, encoding="utf-8")
+                rnd = rosco_dir / "_notas" / "_datos.py"
+                if rnd.is_file():
+                    t_nd = rnd.read_text(encoding="utf-8")
+                    t_nd = t_nd.replace('"Sin título"', '"Untitled"')
+                    rnd.write_text(t_nd, encoding="utf-8")
                 if winreg:
                     k_rosco = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\IngeTrazo\rosco_lt\idioma")
                     winreg.SetValueEx(k_rosco, "actual", 0, winreg.REG_SZ, "en")
