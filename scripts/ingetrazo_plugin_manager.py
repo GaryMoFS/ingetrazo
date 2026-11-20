@@ -244,7 +244,6 @@ class PluginManagerApp:
         self.catalog: dict[str, dict] = {}
         self.checked_ids: set[str] = set()
         self.ignored_ids: set[str] = self._load_ignored()
-        self.show_ignored_var = tk.BooleanVar(value=False)
         self.local_meta_cache: dict[str, dict] = {}
         self.local_status_cache: dict[str, str] = {}  # ext_id -> "active" | "disabled"
         self.is_busy = False
@@ -363,11 +362,6 @@ class PluginManagerApp:
         )
         self.btn_unignore.pack(side=tk.LEFT, padx=(0, 6))
 
-        self.chk_show_ignored = tk.Checkbutton(
-            self.actions_frame, text="Show Ignored", variable=self.show_ignored_var,
-            font=("Segoe UI", 8), command=lambda: self._populate_table("Filter updated.")
-        )
-        self.chk_show_ignored.pack(side=tk.LEFT, padx=(2, 0))
 
         self.btn_refresh = tk.Button(
             self.actions_frame, text="🔄 Refresh Catalog", relief=tk.GROOVE, padx=8, pady=3,
@@ -526,7 +520,6 @@ class PluginManagerApp:
         )
         for b in btns:
             b.config(bg=t["btn_bg"], fg=t["btn_fg"], activebackground=t["border"], activeforeground=t["fg"], bd=1)
-        self.chk_show_ignored.config(bg=t["bg"], fg=t["fg"], selectcolor=t["card"], activebackground=t["bg"], activeforeground=t["fg"])
 
         style = ttk.Style()
         style.theme_use("clam")
@@ -910,7 +903,7 @@ class PluginManagerApp:
 
     def unignore_selected(self):
         if not self.checked_ids:
-            messagebox.showinfo("Unignore Plugins", "Check 'Show Ignored' and select ignored plugins to restore them.")
+            messagebox.showinfo("Unignore Plugins", "No plugins selected. Check the ignored plugins you want to restore.")
             return
         restored = self.checked_ids.intersection(self.ignored_ids)
         self.ignored_ids.difference_update(restored)
@@ -929,7 +922,6 @@ class PluginManagerApp:
         outdated_count = 0
         missing_count = 0
         ignored_count = 0
-        show_ignored = self.show_ignored_var.get()
 
         for ext_id, entry in sorted(self.catalog.items()):
             local = self.local_meta_cache.get(ext_id)
@@ -943,8 +935,6 @@ class PluginManagerApp:
 
             if ext_id in self.ignored_ids:
                 ignored_count += 1
-                if not show_ignored:
-                    continue
                 status = "🚫 Ignored"
                 inst_ver = local.get("version", "-") if local else "-"
             elif local is None:
