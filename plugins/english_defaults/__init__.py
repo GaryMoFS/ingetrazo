@@ -81,3 +81,33 @@ def setup(app):
             log.info("Patched MainWindow._on_export_view_dxf to English defaults (view.dxf, VIEW, VIEW-PROFILE, VIEW-SECTION).")
     except Exception as e:
         log.warning(f"Could not patch _on_export_view_dxf: {e}")
+
+    # 4. Startup layout defaults: 1/2 screen if not maximized, and collapse sidebar tabs
+    try:
+        from PySide6.QtCore import QTimer
+        win = getattr(app, "window", None)
+        if win is not None:
+            def _apply_startup_layout():
+                try:
+                    # Collapse Properties & all right-side dock tabs by default
+                    act = getattr(win, "_act_sidebar", None)
+                    if act is not None:
+                        if act.isChecked():
+                            act.setChecked(False)
+                    elif hasattr(win, "_set_sidebar_visible"):
+                        win._set_sidebar_visible(False)
+
+                    # If not maximized last session, size to 1/2 of the screen
+                    if not win.isMaximized():
+                        screen = win.screen()
+                        if screen is not None:
+                            avail = screen.availableGeometry()
+                            half_w = max(640, avail.width() // 2)
+                            win.resize(half_w, avail.height())
+                            win.move(avail.x(), avail.y())
+                except Exception as exc:
+                    log.warning(f"Could not apply startup layout: {exc}")
+
+            QTimer.singleShot(150, win, _apply_startup_layout)
+    except Exception as e:
+        log.warning(f"Could not schedule startup layout: {e}")
