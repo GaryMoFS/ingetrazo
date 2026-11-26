@@ -44,6 +44,7 @@ CATALOG_URL = "https://raw.githubusercontent.com/ingelibre/ingetrazo-extensions/
 PLUGINS_DIR = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "plugins"
 PLUGINS_DISABLED_DIR = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "plugins_disabled"
 IGNORED_FILE = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "ignored_plugins.json"
+KNOWN_CATALOG_FILE = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "known_catalog_ids.json"
 CACHE_FILE = PLUGINS_DIR.parent / "catalog_cache.json"
 
 # Translations for Portuguese / Spanish community plugins to English
@@ -245,6 +246,8 @@ class PluginManagerApp:
         self.catalog: dict[str, dict] = {}
         self.checked_ids: set[str] = set()
         self.ignored_ids: set[str] = self._load_ignored()
+        self.known_ids: set[str] = self._load_known_ids()
+        self.new_ids: set[str] = set()
         self.local_meta_cache: dict[str, dict] = {}
         self.local_status_cache: dict[str, str] = {}  # ext_id -> "active" | "disabled"
         self.is_busy = False
@@ -283,7 +286,13 @@ class PluginManagerApp:
             self.header_frame, text="📁 Open Plugins Folder", relief=tk.GROOVE, padx=8, pady=2,
             font=("Segoe UI", 9), command=self.open_plugins_folder
         )
-        self.folder_btn.pack(side=tk.RIGHT)
+        self.folder_btn.pack(side=tk.RIGHT, padx=(8, 0))
+
+        self.btn_refresh = tk.Button(
+            self.header_frame, text="🔄 Refresh Catalog", relief=tk.GROOVE, padx=8, pady=2,
+            font=("Segoe UI", 9), command=self.refresh_catalog_manual
+        )
+        self.btn_refresh.pack(side=tk.RIGHT)
 
         # Notebook Container
         self.notebook = ttk.Notebook(self.root)
@@ -310,6 +319,9 @@ class PluginManagerApp:
 
         self.lbl_missing = tk.Label(self.summary_frame, text="Missing: -", font=("Segoe UI", 9))
         self.lbl_missing.pack(side=tk.LEFT, padx=10)
+
+        self.lbl_new = tk.Label(self.summary_frame, text="New: 0", font=("Segoe UI", 9, "bold"))
+        self.lbl_new.pack(side=tk.LEFT, padx=10)
 
         self.lbl_ignored = tk.Label(self.summary_frame, text="Ignored: 0", font=("Segoe UI", 9))
         self.lbl_ignored.pack(side=tk.LEFT, padx=10)
@@ -363,11 +375,6 @@ class PluginManagerApp:
         )
         self.btn_unignore.pack(side=tk.LEFT, padx=(0, 4))
 
-        self.btn_refresh = tk.Button(
-            self.actions_frame, text="🔄 Refresh Catalog", relief=tk.GROOVE, padx=6, pady=3,
-            font=("Segoe UI", 9), command=self.refresh_catalog_manual
-        )
-        self.btn_refresh.pack(side=tk.RIGHT)
 
         # 4. Selection Toolbar Bar
         self.select_toolbar = tk.Frame(self.tab_plugins, padx=14, pady=3)
@@ -393,6 +400,9 @@ class PluginManagerApp:
 
         self.btn_sel_missing = tk.Button(self.select_toolbar, text="❌ Missing Only", relief=tk.GROOVE, command=self.select_missing)
         self.btn_sel_missing.pack(side=tk.LEFT, padx=(0, 4))
+
+        self.btn_sel_new = tk.Button(self.select_toolbar, text="✨ New Only", relief=tk.GROOVE, command=self.select_new)
+        self.btn_sel_new.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_sel_outdated = tk.Button(self.select_toolbar, text="⚠️ Outdated Only", relief=tk.GROOVE, command=self.select_outdated)
         self.btn_sel_outdated.pack(side=tk.LEFT, padx=(0, 4))
@@ -516,13 +526,14 @@ class PluginManagerApp:
         self.lbl_outdated.config(bg=t["surface"], fg=t["outdated"])
         self.lbl_missing.config(bg=t["surface"], fg=t["missing"])
         self.lbl_ignored.config(bg=t["surface"], fg=t["muted"])
+        self.lbl_new.config(bg=t["surface"], fg=t["accent"])
         self.lbl_selected.config(bg=t["surface"], fg=t["accent"])
 
         btns = (
             self.folder_btn, self.btn_theme, self.btn_download_selected, self.btn_disable, self.btn_enable,
             self.btn_update_all, self.btn_download_all, self.btn_refresh, self.btn_sel_all, self.btn_desel_all,
             self.btn_invert, self.btn_sel_active, self.btn_sel_disabled, self.btn_sel_missing,
-            self.btn_ignore, self.btn_unignore, self.btn_sel_outdated, self.btn_sel_ignored
+            self.btn_ignore, self.btn_unignore, self.btn_sel_outdated, self.btn_sel_ignored, self.btn_sel_new
         )
         for b in btns:
             b.config(bg=t["btn_bg"], fg=t["btn_fg"], activebackground=t["border"], activeforeground=t["fg"], bd=1)
@@ -686,6 +697,9 @@ class PluginManagerApp:
                 norm = normalize_catalog(cached_data)
                 if norm:
                     self.catalog = norm
+                    if not self.known_ids:
+                        self.known_ids = set(norm.keys())
+                        self._save_known_ids()
                     return
             except Exception:
                 pass
@@ -713,6 +727,16 @@ class PluginManagerApp:
             new_cat = normalize_catalog(data)
 
             if new_cat and len(new_cat) >= len(self.catalog):
+                if not self.known_ids:
+                    self.known_ids = set(self.catalog.keys()) if self.catalog else set(new_cat.keys())
+                discovered_new = {
+                    eid for eid in new_cat.keys()
+                    if eid not in self.known_ids and eid not in self.local_meta_cache and eid not in self.ignored_ids
+                }
+                if discovered_new:
+                    self.new_ids.update(discovered_new)
+                self.known_ids.update(new_cat.keys())
+                self._save_known_ids()
                 self.catalog = new_cat
                 try:
                     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -850,6 +874,14 @@ class PluginManagerApp:
             self._update_row_checkbox(ext_id)
         self._update_selected_label()
 
+    def select_new(self):
+        self.checked_ids.clear()
+        for ext_id in self.catalog.keys():
+            if ext_id in self.new_ids and ext_id not in self.ignored_ids and ext_id not in self.local_meta_cache:
+                self.checked_ids.add(ext_id)
+            self._update_row_checkbox(ext_id)
+        self._update_selected_label()
+
     def select_ignored(self):
         self.checked_ids.clear()
         for ext_id in self.catalog.keys():
@@ -914,6 +946,23 @@ class PluginManagerApp:
         self._populate_table(f"Enabled {count} plugin(s). Restart IngeTrazo for changes to take effect.")
         messagebox.showinfo("Plugins Enabled", f"Successfully enabled {count} plugin(s).\n\nRestart IngeTrazo to update menus.")
 
+    def _load_known_ids(self) -> set[str]:
+        try:
+            if KNOWN_CATALOG_FILE.is_file():
+                data = json.loads(KNOWN_CATALOG_FILE.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    return set(str(x) for x in data)
+        except Exception:
+            pass
+        return set()
+
+    def _save_known_ids(self):
+        try:
+            KNOWN_CATALOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            KNOWN_CATALOG_FILE.write_text(json.dumps(sorted(self.known_ids), indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
     def _load_ignored(self) -> set[str]:
         try:
             if IGNORED_FILE.is_file():
@@ -937,6 +986,7 @@ class PluginManagerApp:
             return
         to_ignore = set(self.checked_ids)
         self.ignored_ids.update(to_ignore)
+        self.new_ids.difference_update(to_ignore)
         self._save_ignored()
         disabled_count = sum(1 for ext_id in to_ignore if self._move_plugin_folder(ext_id, False))
         self.checked_ids.difference_update(to_ignore)
@@ -962,6 +1012,7 @@ class PluginManagerApp:
         disabled_count = 0
         outdated_count = 0
         missing_count = 0
+        new_count = 0
         ignored_count = 0
 
         for ext_id, entry in sorted(self.catalog.items()):
@@ -979,9 +1030,13 @@ class PluginManagerApp:
                 status = "🚫 Ignored"
                 inst_ver = local.get("version", "-") if local else "-"
             elif local is None:
-                status = "❌ Missing"
+                if ext_id in self.new_ids:
+                    status = "✨ New"
+                    new_count += 1
+                else:
+                    status = "❌ Missing"
+                    missing_count += 1
                 inst_ver = "-"
-                missing_count += 1
             else:
                 inst_ver = local.get("version", "?")
                 loc_hash = local.get("sha256", "").lower().strip()
@@ -1003,6 +1058,7 @@ class PluginManagerApp:
         self.lbl_disabled.config(text=f"Disabled: {disabled_count}")
         self.lbl_outdated.config(text=f"Out of Date: {outdated_count}")
         self.lbl_missing.config(text=f"Missing: {missing_count}")
+        self.lbl_new.config(text=f"New: {new_count}")
         self.lbl_ignored.config(text=f"Ignored: {ignored_count}")
         self._update_selected_label()
 
