@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 
 APPDATA_DIR = Path(os.environ.get("APPDATA", "")) / "ingetrazo"
 PLUGINS_DIR = APPDATA_DIR / "plugins"
+PLUGINS_DISABLED_DIR = APPDATA_DIR / "plugins_disabled"
 PROFILES_FILE = APPDATA_DIR / "plugin_profiles.json"
 
 SUPERSEDED_SPANISH = {"niveles", "propiedades_poligono"}
@@ -17,17 +19,21 @@ CORE_ENGLISH_ID = "english_defaults"
 
 
 def scan_installed_plugins() -> dict[str, str]:
-    """Returns {plugin_folder_name: 'active' | 'disabled'} for all plugins in PLUGINS_DIR."""
+    """Returns {plugin_folder_name: 'active' | 'disabled'} across PLUGINS_DIR and PLUGINS_DISABLED_DIR."""
     result: dict[str, str] = {}
-    if not PLUGINS_DIR.is_dir():
-        return result
-    for d in sorted(PLUGINS_DIR.iterdir(), key=lambda x: x.name.lower()):
-        if not d.is_dir() or d.name.startswith(".") or d.name == "__pycache__":
-            continue
-        if (d / "__init__.py").is_file():
-            result[d.name] = "active"
-        elif (d / "__init__.py.disabled").is_file():
+    if PLUGINS_DISABLED_DIR.is_dir():
+        for d in sorted(PLUGINS_DISABLED_DIR.iterdir(), key=lambda x: x.name.lower()):
+            if not d.is_dir() or d.name.startswith(".") or d.name == "__pycache__":
+                continue
             result[d.name] = "disabled"
+    if PLUGINS_DIR.is_dir():
+        for d in sorted(PLUGINS_DIR.iterdir(), key=lambda x: x.name.lower()):
+            if not d.is_dir() or d.name.startswith(".") or d.name == "__pycache__":
+                continue
+            if (d / "__init__.py").is_file():
+                result[d.name] = "active"
+            elif (d / "__init__.py.disabled").is_file():
+                result[d.name] = "disabled"
     return result
 
 
@@ -120,21 +126,37 @@ def save_profiles(profiles: dict[str, dict]) -> None:
 
 
 def _set_plugin_state(plugin_id: str, enable: bool) -> bool:
-    """Enables or disables a single plugin by renaming __init__.py. Returns True if changed."""
-    p_dir = PLUGINS_DIR / plugin_id
-    if not p_dir.is_dir():
-        return False
-    init_f = p_dir / "__init__.py"
-    dis_f = p_dir / "__init__.py.disabled"
+    """Enables or disables a plugin by moving its folder between plugins/ and plugins_disabled/."""
+    active_dir = PLUGINS_DIR / plugin_id
+    disabled_dir = PLUGINS_DISABLED_DIR / plugin_id
     try:
-        if enable and dis_f.is_file() and not init_f.is_file():
-            dis_f.rename(init_f)
-            return True
-        if not enable and init_f.is_file():
-            if dis_f.is_file():
-                dis_f.unlink()
-            init_f.rename(dis_f)
-            return True
+        if enable:
+            if active_dir.is_dir():
+                dis_f = active_dir / "__init__.py.disabled"
+                init_f = active_dir / "__init__.py"
+                if dis_f.is_file() and not init_f.is_file():
+                    dis_f.rename(init_f)
+                    return True
+                return False
+            if disabled_dir.is_dir():
+                dis_f = disabled_dir / "__init__.py.disabled"
+                init_f = disabled_dir / "__init__.py"
+                if dis_f.is_file() and not init_f.is_file():
+                    dis_f.rename(init_f)
+                PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(disabled_dir), str(active_dir))
+                return True
+        else:
+            if active_dir.is_dir():
+                dis_f = active_dir / "__init__.py.disabled"
+                init_f = active_dir / "__init__.py"
+                if dis_f.is_file() and not init_f.is_file():
+                    dis_f.rename(init_f)
+                PLUGINS_DISABLED_DIR.mkdir(parents=True, exist_ok=True)
+                if disabled_dir.is_dir():
+                    shutil.rmtree(disabled_dir)
+                shutil.move(str(active_dir), str(disabled_dir))
+                return True
     except OSError:
         return False
     return False

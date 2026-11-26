@@ -42,6 +42,7 @@ enable_high_dpi_awareness()
 
 CATALOG_URL = "https://raw.githubusercontent.com/ingelibre/ingetrazo-extensions/main/catalog.json"
 PLUGINS_DIR = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "plugins"
+PLUGINS_DISABLED_DIR = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "plugins_disabled"
 IGNORED_FILE = Path(os.environ.get("APPDATA", "")) / "ingetrazo" / "ignored_plugins.json"
 CACHE_FILE = PLUGINS_DIR.parent / "catalog_cache.json"
 
@@ -235,7 +236,7 @@ class PluginManagerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("IngeTrazo - Plugin & Extension Manager")
-        self.root.geometry("1020x680")
+        self.root.geometry("1140x700")
         self.root.minsize(860, 520)
 
         self.is_dark = True
@@ -321,50 +322,49 @@ class PluginManagerApp:
         self.actions_frame.pack(fill=tk.X)
 
         self.btn_download_selected = tk.Button(
-            self.actions_frame, text="📥 Download Selected (0)", relief=tk.GROOVE, padx=8, pady=3,
+            self.actions_frame, text="📥 Download Selected (0)", relief=tk.GROOVE, padx=6, pady=3,
             font=("Segoe UI", 9, "bold"), command=self.download_selected_async
         )
-        self.btn_download_selected.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_download_selected.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_disable = tk.Button(
-            self.actions_frame, text="⏸ Disable Selected", relief=tk.GROOVE, padx=8, pady=3,
+            self.actions_frame, text="⏸ Disable Selected", relief=tk.GROOVE, padx=6, pady=3,
             font=("Segoe UI", 9), command=self.disable_selected
         )
-        self.btn_disable.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_disable.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_enable = tk.Button(
-            self.actions_frame, text="▶ Enable Selected", relief=tk.GROOVE, padx=8, pady=3,
+            self.actions_frame, text="▶ Enable Selected", relief=tk.GROOVE, padx=6, pady=3,
             font=("Segoe UI", 9), command=self.enable_selected
         )
-        self.btn_enable.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_enable.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_update_all = tk.Button(
-            self.actions_frame, text="⚡ Update Outdated", relief=tk.GROOVE, padx=8, pady=3,
+            self.actions_frame, text="⚡ Update Outdated", relief=tk.GROOVE, padx=6, pady=3,
             font=("Segoe UI", 9), command=self.update_all_async
         )
-        self.btn_update_all.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_update_all.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_download_all = tk.Button(
-            self.actions_frame, text="📥 Download All", relief=tk.GROOVE, padx=8, pady=3,
+            self.actions_frame, text="📥 Download All", relief=tk.GROOVE, padx=6, pady=3,
             font=("Segoe UI", 9), command=self.download_all_async
         )
-        self.btn_download_all.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_download_all.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_ignore = tk.Button(
-            self.actions_frame, text="🚫 Ignore Selected", relief=tk.GROOVE, padx=8, pady=3,
+            self.actions_frame, text="🚫 Ignore Selected", relief=tk.GROOVE, padx=6, pady=3,
             font=("Segoe UI", 9), command=self.ignore_selected
         )
-        self.btn_ignore.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_ignore.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_unignore = tk.Button(
-            self.actions_frame, text="♻ Unignore", relief=tk.GROOVE, padx=8, pady=3,
+            self.actions_frame, text="♻ Unignore", relief=tk.GROOVE, padx=6, pady=3,
             font=("Segoe UI", 9), command=self.unignore_selected
         )
-        self.btn_unignore.pack(side=tk.LEFT, padx=(0, 6))
-
+        self.btn_unignore.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_refresh = tk.Button(
-            self.actions_frame, text="🔄 Refresh Catalog", relief=tk.GROOVE, padx=8, pady=3,
+            self.actions_frame, text="🔄 Refresh Catalog", relief=tk.GROOVE, padx=6, pady=3,
             font=("Segoe UI", 9), command=self.refresh_catalog_manual
         )
         self.btn_refresh.pack(side=tk.RIGHT)
@@ -393,6 +393,12 @@ class PluginManagerApp:
 
         self.btn_sel_missing = tk.Button(self.select_toolbar, text="❌ Missing Only", relief=tk.GROOVE, command=self.select_missing)
         self.btn_sel_missing.pack(side=tk.LEFT, padx=(0, 4))
+
+        self.btn_sel_outdated = tk.Button(self.select_toolbar, text="⚠️ Outdated Only", relief=tk.GROOVE, command=self.select_outdated)
+        self.btn_sel_outdated.pack(side=tk.LEFT, padx=(0, 4))
+
+        self.btn_sel_ignored = tk.Button(self.select_toolbar, text="🚫 Ignored Only", relief=tk.GROOVE, command=self.select_ignored)
+        self.btn_sel_ignored.pack(side=tk.LEFT, padx=(0, 4))
 
         self.hint_lbl = tk.Label(
             self.select_toolbar, text="(Click headers to sort | Hover row for full description)", font=("Segoe UI", 8)
@@ -516,7 +522,7 @@ class PluginManagerApp:
             self.folder_btn, self.btn_theme, self.btn_download_selected, self.btn_disable, self.btn_enable,
             self.btn_update_all, self.btn_download_all, self.btn_refresh, self.btn_sel_all, self.btn_desel_all,
             self.btn_invert, self.btn_sel_active, self.btn_sel_disabled, self.btn_sel_missing,
-            self.btn_ignore, self.btn_unignore
+            self.btn_ignore, self.btn_unignore, self.btn_sel_outdated, self.btn_sel_ignored
         )
         for b in btns:
             b.config(bg=t["btn_bg"], fg=t["btn_fg"], activebackground=t["border"], activeforeground=t["fg"], bd=1)
@@ -615,43 +621,57 @@ class PluginManagerApp:
             self.lbl_details_text.config(text=desc)
 
     def _scan_local_plugins(self) -> dict[str, dict]:
-        """Scan local plugins directory, recording version and active/disabled state."""
+        """Scan active (plugins/) and disabled (plugins_disabled/) directories, migrating legacy .disabled files."""
         installed = {}
         status_map = {}
+
+        # Migrate any legacy __init__.py.disabled folders out of PLUGINS_DIR so IngeTrazo won't show (load error)
         if PLUGINS_DIR.is_dir():
             try:
-                for entry in os.scandir(PLUGINS_DIR):
+                for entry in list(os.scandir(PLUGINS_DIR)):
                     if entry.is_dir():
-                        meta_file = os.path.join(entry.path, "extension.json")
-                        init_py = os.path.join(entry.path, "__init__.py")
-                        init_dis = os.path.join(entry.path, "__init__.py.disabled")
-
-                        meta = {}
-                        if os.path.isfile(meta_file):
+                        init_py = Path(entry.path) / "__init__.py"
+                        init_dis = Path(entry.path) / "__init__.py.disabled"
+                        if init_dis.is_file() and not init_py.is_file():
                             try:
-                                with open(meta_file, "r", encoding="utf-8") as f:
-                                    meta = json.load(f)
+                                init_dis.rename(init_py)
+                                PLUGINS_DISABLED_DIR.mkdir(parents=True, exist_ok=True)
+                                dst = PLUGINS_DISABLED_DIR / entry.name
+                                if dst.exists():
+                                    shutil.rmtree(dst)
+                                shutil.move(entry.path, str(dst))
                             except Exception:
                                 pass
-
-                        # Determine active vs disabled
-                        if os.path.isfile(init_py):
-                            p_status = "active"
-                        elif os.path.isfile(init_dis):
-                            p_status = "disabled"
-                        else:
-                            p_status = "active" if any(f.endswith(".py") for f in os.listdir(entry.path)) else "disabled"
-
-                        keys = [entry.name, entry.name.replace("-", "_"), entry.name.replace("_", "-")]
-                        meta_id = meta.get("id")
-                        if meta_id:
-                            keys.extend([meta_id, meta_id.replace("-", "_"), meta_id.replace("_", "-")])
-
-                        for k in keys:
-                            installed[k] = meta
-                            status_map[k] = p_status
             except Exception:
                 pass
+
+        for base_dir, default_status in ((PLUGINS_DISABLED_DIR, "disabled"), (PLUGINS_DIR, "active")):
+            if not base_dir.is_dir():
+                continue
+            try:
+                for entry in os.scandir(base_dir):
+                    if not entry.is_dir() or entry.name.startswith(".") or entry.name == "__pycache__":
+                        continue
+                    meta_file = os.path.join(entry.path, "extension.json")
+                    meta = {}
+                    if os.path.isfile(meta_file):
+                        try:
+                            with open(meta_file, "r", encoding="utf-8") as f:
+                                meta = json.load(f)
+                        except Exception:
+                            pass
+
+                    keys = [entry.name, entry.name.replace("-", "_"), entry.name.replace("_", "-")]
+                    meta_id = meta.get("id")
+                    if meta_id:
+                        keys.extend([meta_id, meta_id.replace("-", "_"), meta_id.replace("_", "-")])
+
+                    for k in keys:
+                        installed[k] = meta
+                        status_map[k] = default_status
+            except Exception:
+                pass
+
         self.local_meta_cache = installed
         self.local_status_cache = status_map
         return installed
@@ -795,7 +815,7 @@ class PluginManagerApp:
     def select_active(self):
         self.checked_ids.clear()
         for ext_id in self.catalog.keys():
-            if self.local_status_cache.get(ext_id) == "active":
+            if ext_id not in self.ignored_ids and self.local_status_cache.get(ext_id) == "active":
                 self.checked_ids.add(ext_id)
             self._update_row_checkbox(ext_id)
         self._update_selected_label()
@@ -803,7 +823,7 @@ class PluginManagerApp:
     def select_disabled(self):
         self.checked_ids.clear()
         for ext_id in self.catalog.keys():
-            if self.local_status_cache.get(ext_id) == "disabled":
+            if ext_id not in self.ignored_ids and self.local_status_cache.get(ext_id) == "disabled":
                 self.checked_ids.add(ext_id)
             self._update_row_checkbox(ext_id)
         self._update_selected_label()
@@ -811,30 +831,77 @@ class PluginManagerApp:
     def select_missing(self):
         self.checked_ids.clear()
         for ext_id in self.catalog.keys():
-            if ext_id not in self.local_meta_cache:
+            if ext_id not in self.ignored_ids and ext_id not in self.local_meta_cache:
                 self.checked_ids.add(ext_id)
             self._update_row_checkbox(ext_id)
         self._update_selected_label()
 
-    # Enable & Disable Actions
+    def select_outdated(self):
+        self.checked_ids.clear()
+        for ext_id, entry in self.catalog.items():
+            if ext_id in self.ignored_ids:
+                continue
+            local = self.local_meta_cache.get(ext_id)
+            if local:
+                cat_hash = entry.get("sha256", "").lower().strip()
+                cat_ver = entry.get("version", "-")
+                if (cat_hash and local.get("sha256", "").lower().strip() != cat_hash) or (cat_ver != "-" and local.get("version") != cat_ver):
+                    self.checked_ids.add(ext_id)
+            self._update_row_checkbox(ext_id)
+        self._update_selected_label()
+
+    def select_ignored(self):
+        self.checked_ids.clear()
+        for ext_id in self.catalog.keys():
+            if ext_id in self.ignored_ids:
+                self.checked_ids.add(ext_id)
+            self._update_row_checkbox(ext_id)
+        self._update_selected_label()
+
+    # Enable & Disable Actions (moves folders cleanly between plugins/ and plugins_disabled/)
+    def _move_plugin_folder(self, ext_id: str, enable: bool) -> bool:
+        for folder_name in (ext_id, ext_id.replace("_", "-"), ext_id.replace("-", "_")):
+            active_dir = PLUGINS_DIR / folder_name
+            disabled_dir = PLUGINS_DISABLED_DIR / folder_name
+            try:
+                if enable:
+                    if disabled_dir.is_dir():
+                        dis_f = disabled_dir / "__init__.py.disabled"
+                        init_f = disabled_dir / "__init__.py"
+                        if dis_f.is_file() and not init_f.is_file():
+                            dis_f.rename(init_f)
+                        PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
+                        if active_dir.is_dir():
+                            shutil.rmtree(active_dir)
+                        shutil.move(str(disabled_dir), str(active_dir))
+                        return True
+                    if active_dir.is_dir():
+                        dis_f = active_dir / "__init__.py.disabled"
+                        init_f = active_dir / "__init__.py"
+                        if dis_f.is_file() and not init_f.is_file():
+                            dis_f.rename(init_f)
+                            return True
+                else:
+                    if active_dir.is_dir():
+                        dis_f = active_dir / "__init__.py.disabled"
+                        init_f = active_dir / "__init__.py"
+                        if dis_f.is_file() and not init_f.is_file():
+                            dis_f.rename(init_f)
+                        PLUGINS_DISABLED_DIR.mkdir(parents=True, exist_ok=True)
+                        if disabled_dir.is_dir():
+                            shutil.rmtree(disabled_dir)
+                        shutil.move(str(active_dir), str(disabled_dir))
+                        return True
+            except Exception:
+                pass
+        return False
+
     def disable_selected(self):
         if not self.checked_ids:
             messagebox.showinfo("Disable Plugins", "No plugins selected. Check the plugins you wish to disable.")
             return
 
-        count = 0
-        for ext_id in self.checked_ids:
-            for folder_name in (ext_id, ext_id.replace("_", "-"), ext_id.replace("-", "_")):
-                p_dir = PLUGINS_DIR / folder_name
-                init_file = p_dir / "__init__.py"
-                dis_file = p_dir / "__init__.py.disabled"
-                if init_file.is_file():
-                    try:
-                        init_file.rename(dis_file)
-                        count += 1
-                        break
-                    except Exception:
-                        pass
+        count = sum(1 for ext_id in self.checked_ids if self._move_plugin_folder(ext_id, False))
         self._populate_table(f"Disabled {count} plugin(s). Restart IngeTrazo for changes to take effect.")
         messagebox.showinfo("Plugins Disabled", f"Successfully disabled {count} plugin(s).\n\nRestart IngeTrazo to update menus.")
 
@@ -843,19 +910,7 @@ class PluginManagerApp:
             messagebox.showinfo("Enable Plugins", "No plugins selected. Check the plugins you wish to enable.")
             return
 
-        count = 0
-        for ext_id in self.checked_ids:
-            for folder_name in (ext_id, ext_id.replace("_", "-"), ext_id.replace("-", "_")):
-                p_dir = PLUGINS_DIR / folder_name
-                dis_file = p_dir / "__init__.py.disabled"
-                init_file = p_dir / "__init__.py"
-                if dis_file.is_file():
-                    try:
-                        dis_file.rename(init_file)
-                        count += 1
-                        break
-                    except Exception:
-                        pass
+        count = sum(1 for ext_id in self.checked_ids if self._move_plugin_folder(ext_id, True))
         self._populate_table(f"Enabled {count} plugin(s). Restart IngeTrazo for changes to take effect.")
         messagebox.showinfo("Plugins Enabled", f"Successfully enabled {count} plugin(s).\n\nRestart IngeTrazo to update menus.")
 
@@ -883,21 +938,7 @@ class PluginManagerApp:
         to_ignore = set(self.checked_ids)
         self.ignored_ids.update(to_ignore)
         self._save_ignored()
-        disabled_count = 0
-        for ext_id in to_ignore:
-            for folder_name in (ext_id, ext_id.replace("_", "-"), ext_id.replace("-", "_")):
-                p_dir = PLUGINS_DIR / folder_name
-                init_f = p_dir / "__init__.py"
-                dis_f = p_dir / "__init__.py.disabled"
-                if init_f.is_file():
-                    try:
-                        if dis_f.is_file():
-                            dis_f.unlink()
-                        init_f.rename(dis_f)
-                        disabled_count += 1
-                        break
-                    except Exception:
-                        pass
+        disabled_count = sum(1 for ext_id in to_ignore if self._move_plugin_folder(ext_id, False))
         self.checked_ids.difference_update(to_ignore)
         self._populate_table(f"Ignored {len(to_ignore)} plugin(s) (disabled {disabled_count} active).")
 
